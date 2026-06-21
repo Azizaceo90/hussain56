@@ -4,6 +4,12 @@ import { hashPassword } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+// Reports whether the first admin has been created yet (used by /setup).
+export async function GET() {
+  const count = await prisma.user.count();
+  return NextResponse.json({ initialized: count > 0 });
+}
+
 // One-time first-admin bootstrap. Only works when there are NO users yet, so it
 // can't be used to create extra admins later. Call it once after first deploy.
 // Body: { name, email, password }

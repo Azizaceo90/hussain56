@@ -64,6 +64,12 @@ export default function LoginPage() {
             </Button>
           </form>
         </Card>
+        <p className="text-center text-xs text-slate-500 mt-4">
+          First time here?{" "}
+          <a href="/setup" className="text-brand-600 font-medium underline">
+            Set up your admin account
+          </a>
+        </p>
       </div>
     </div>
   );
