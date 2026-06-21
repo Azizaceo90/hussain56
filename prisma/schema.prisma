@@ -111,6 +111,27 @@ model PayrollEntry {
   @@index([userId])
 }
 
+model JobListing {
+  id           String    @id @default(cuid())
+  externalId   String    @unique // Adzuna job id (dedupe key)
+  source       String    @default("adzuna")
+  title        String
+  company      String?
+  location     String?
+  description  String?
+  url          String?
+  salaryMin    Float?
+  salaryMax    Float?
+  category     String?
+  contractType String?
+  remote       Boolean?  @default(false)
+  postedAt     DateTime?
+  fetchedAt    DateTime  @default(now())
+  query        String?
+
+  @@index([postedAt])
+}
+
 model Notification {
   id        String   @id @default(cuid())
   userId    String

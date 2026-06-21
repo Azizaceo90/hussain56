@@ -25,6 +25,8 @@ payroll & expenses, with custom cookie-session auth and role-gated access.
    | `GMAIL_APP_PASSWORD` | optional | Gmail app password; unset = emails logged, not sent |
    | `CRON_SECRET` | optional | Protects the daily cron endpoint |
    | `APP_URL` | optional | Base URL used in emailed links |
+   | `ADZUNA_APP_ID` | optional | Job search (Adzuna) — free at developer.adzuna.com |
+   | `ADZUNA_APP_KEY` | optional | Job search (Adzuna) |
 4. **Deploy.** `prisma db push` applies the schema on every deploy. New columns
    are kept nullable so pushes never block.
 5. **Create the first admin** (one-time). After the first deploy, POST to
@@ -46,6 +48,15 @@ npm install
 npx prisma db push
 npm run dev
 ```
+
+## Jobs (Adzuna)
+The **Jobs** page pulls remote medical-coding roles from the Adzuna API.
+1. Get free credentials at https://developer.adzuna.com and set `ADZUNA_APP_ID`
+   + `ADZUNA_APP_KEY` in Vercel, then redeploy.
+2. As an admin, open **Jobs → Sync 1000 roles** to pull the latest listings
+   (posted within 30 days). Everyone can browse/search the stored results.
+3. The daily cron (`/api/cron/mail-sync`, `0 12 * * *`) refreshes them
+   automatically.
 
 ## Roles
 - **admin** — sees everything; can invite/edit/delete users, impersonate

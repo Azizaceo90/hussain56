@@ -20,6 +20,7 @@ const NAV: NavItem[] = [
   { href: "/time", label: "Time Tracker", icon: "◷" },
   { href: "/contracts", label: "Contracts", icon: "✎" },
   { href: "/payroll", label: "Payroll & Expenses", icon: "$" },
+  { href: "/jobs", label: "Jobs", icon: "⌕" },
   { href: "/team", label: "Team", icon: "◎", adminOnly: true },
   { href: "/account", label: "My Account", icon: "☺" },
 ];
