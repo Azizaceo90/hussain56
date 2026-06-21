@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String  @id @default(cuid())
+  name         String
+  email        String  @unique
+  role         String  @default("employee") // "admin" | "employee"
+  title        String?
+  passwordHash String?
+  avatarColor  String?
+
+  // onboarding
+  fullLegalName     String?
+  dateOfBirth       String?
+  address           String?
+  phone             String?
+  emergencyName     String?
+  emergencyPhone    String?
+  emergencyRelation String?
+  paymentMethod     String?
+  paymentAccount    String?
+
+  payRate   Float? // hourly
+  projects  String? // comma-separated timesheet projects override
+  signature String? // reusable saved e-signature PNG data URL
+
+  createdAt DateTime @default(now())
+
+  timeEntries    TimeEntry[]
+  expenses       Expense[]
+  payrollEntries PayrollEntry[]
+  notifications  Notification[]
+}
+
+model TimeEntry {
+  id       String    @id @default(cuid())
+  userId   String
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clockIn  DateTime
+  clockOut DateTime?
+  project  String?
+  note     String?
+
+  // metric counters
+  metricCount Int? @default(0)
+
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model Contract {
+  id               String    @id @default(cuid())
+  title            String
+  assignedToId     String?
+  assignedToName   String?
+  status           String    @default("pending") // pending | signed
+  fileName         String?
+  dataUrl          String // base64 PDF (data URL)
+  originalDataUrl  String?
+  fields           Json? // placed fillable fields
+  issuedAt         DateTime  @default(now())
+  signedAt         DateTime?
+  remindedAt       DateTime?
+  signatureDataUrl String?
+  signerName       String?
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userName    String?
+  date        DateTime
+  category    String?
+  description String?
+  amount      Float
+  status      String   @default("pending") // pending | approved | reimbursed | rejected
+  receiptUrl  String? // data URL
+  receiptName String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PayrollEntry {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userName    String?
+  periodStart DateTime
+  periodEnd   DateTime
+  hours       Float
+  rate        Float
+  gross       Float
+  status      String    @default("pending") // pending | paid
+  method      String?
+  note        String?
+  paidAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String?
+  title     String
+  body      String?
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
