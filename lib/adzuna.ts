@@ -9,6 +9,20 @@ const BASE = "https://api.adzuna.com/v1/api/jobs";
 export const DEFAULT_QUERY = "medical coding remote";
 export const DEFAULT_COUNTRY = "us";
 
+// A campaign of related searches run together to maximize coverage of remote
+// medical-coding roles (Adzuna ranks by relevance per query, so variants pull
+// different listings). Results are merged and deduped by Adzuna id.
+export const DEFAULT_QUERIES = [
+  "medical coding remote",
+  "medical coder remote",
+  "remote medical coding",
+  "medical coder",
+  "medical coding",
+  "medical billing and coding",
+  "certified professional coder",
+  "risk adjustment coder",
+];
+
 export function adzunaConfigured(): boolean {
   return !!(process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY);
 }
@@ -34,6 +48,7 @@ async function fetchPage(opts: {
   page: number;
   resultsPerPage: number;
   maxDaysOld?: number;
+  sortByDate?: boolean;
 }): Promise<AdzunaResult[]> {
   const params = new URLSearchParams({
     app_id: process.env.ADZUNA_APP_ID!,
@@ -43,6 +58,7 @@ async function fetchPage(opts: {
     "content-type": "application/json",
   });
   if (opts.maxDaysOld) params.set("max_days_old", String(opts.maxDaysOld));
+  if (opts.sortByDate) params.set("sort_by", "date");
 
   const url = `${BASE}/${opts.country}/search/${opts.page}?${params.toString()}`;
   const res = await fetch(url, { cache: "no-store" });
@@ -63,45 +79,56 @@ function looksRemote(r: AdzunaResult): boolean {
 // Adzuna id. Returns how many were fetched and how many were new.
 export async function syncJobs(opts?: {
   query?: string;
+  queries?: string[];
   country?: string;
   target?: number;
   maxDaysOld?: number;
 }): Promise<{ configured: boolean; fetched: number; created: number; query: string }> {
-  const query = opts?.query?.trim() || DEFAULT_QUERY;
+  // A single typed query runs precisely; otherwise run the broad campaign.
+  const queries =
+    opts?.queries && opts.queries.length
+      ? opts.queries
+      : opts?.query?.trim()
+        ? [opts.query.trim()]
+        : DEFAULT_QUERIES;
+  const label = opts?.query?.trim() || "remote medical coding (campaign)";
+
   if (!adzunaConfigured())
-    return { configured: false, fetched: 0, created: 0, query };
+    return { configured: false, fetched: 0, created: 0, query: label };
 
   const country = opts?.country || DEFAULT_COUNTRY;
   const target = Math.min(opts?.target ?? 1000, 1000);
   const resultsPerPage = 50; // Adzuna max
-  const totalPages = Math.ceil(target / resultsPerPage);
+  const maxPagesPerQuery = 10; // up to 500 per query before moving on
+  const BATCH = 4;
 
-  // Fetch pages in small parallel batches to stay within serverless time.
-  const all: AdzunaResult[] = [];
-  const BATCH = 5;
-  for (let start = 1; start <= totalPages; start += BATCH) {
-    const batch = [];
-    for (let p = start; p < start + BATCH && p <= totalPages; p++) {
-      batch.push(
-        fetchPage({ country, query, page: p, resultsPerPage, maxDaysOld: opts?.maxDaysOld }).catch(
-          () => [] as AdzunaResult[]
-        )
-      );
-    }
-    const pages = await Promise.all(batch);
-    let emptyRun = true;
-    for (const page of pages) {
-      if (page.length > 0) emptyRun = false;
-      all.push(...page);
-    }
-    // Stop early if a whole batch came back empty (no more results).
-    if (emptyRun) break;
-  }
-
-  // Dedupe by id.
+  // Dedupe across all queries by Adzuna id.
   const unique = new Map<string, AdzunaResult>();
-  for (const r of all) {
-    if (r.id && !unique.has(r.id)) unique.set(r.id, r);
+
+  outer: for (const query of queries) {
+    for (let start = 1; start <= maxPagesPerQuery; start += BATCH) {
+      const batch: Promise<AdzunaResult[]>[] = [];
+      for (let p = start; p < start + BATCH && p <= maxPagesPerQuery; p++) {
+        batch.push(
+          fetchPage({
+            country,
+            query,
+            page: p,
+            resultsPerPage,
+            maxDaysOld: opts?.maxDaysOld,
+            sortByDate: true,
+          }).catch(() => [] as AdzunaResult[])
+        );
+      }
+      const pages = await Promise.all(batch);
+      let emptyRun = true;
+      for (const page of pages) {
+        if (page.length > 0) emptyRun = false;
+        for (const r of page) if (r.id && !unique.has(r.id)) unique.set(r.id, r);
+      }
+      if (unique.size >= target) break outer;
+      if (emptyRun) break; // exhausted this query; move to the next
+    }
   }
 
   // Figure out which ids are genuinely new (for an accurate "created" count).
@@ -127,7 +154,7 @@ export async function syncJobs(opts?: {
       contractType: r.contract_time || r.contract_type || null,
       remote: looksRemote(r),
       postedAt: r.created ? new Date(r.created) : null,
-      query,
+      query: label,
       fetchedAt: new Date(),
     };
     await prisma.jobListing.upsert({
@@ -138,5 +165,5 @@ export async function syncJobs(opts?: {
     if (!existingIds.has(r.id)) created++;
   }
 
-  return { configured: true, fetched: unique.size, created, query };
+  return { configured: true, fetched: unique.size, created, query: label };
 }

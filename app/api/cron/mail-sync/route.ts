@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   let jobs: any = { configured: false };
   if (adzunaConfigured()) {
     try {
-      jobs = await syncJobs({ target: 1000, maxDaysOld: 30 });
+      jobs = await syncJobs({ target: 1000 });
     } catch (e: any) {
       jobs = { configured: true, error: e?.message || "sync failed" };
     }

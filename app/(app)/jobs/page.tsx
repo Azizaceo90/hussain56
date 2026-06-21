@@ -77,7 +77,8 @@ export default function JobsPage() {
     const res = await fetch("/api/jobs/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: q || "medical coding remote", target: 1000 }),
+      // Empty query => server runs the broad campaign; a typed query is precise.
+      body: JSON.stringify({ query: q.trim() || undefined, target: 1000 }),
     });
     const result = await res.json().catch(() => ({}));
     setSyncing(false);

@@ -20,10 +20,11 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   try {
     const result = await syncJobs({
+      // No query => run the broad medical-coding campaign (results sorted by
+      // newest). A typed query runs precisely.
       query: body.query,
       target: body.target ?? 1000,
-      // Only "new" roles: posted within the last 30 days.
-      maxDaysOld: body.maxDaysOld ?? 30,
+      maxDaysOld: body.maxDaysOld, // undefined = no day cap (maximize results)
     });
     return NextResponse.json(result);
   } catch (e: any) {
