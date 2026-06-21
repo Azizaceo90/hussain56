@@ -33,8 +33,8 @@ export default function JobsPage() {
   const { session } = useData();
   const isAdmin = session.user.role === "admin";
 
-  const [q, setQ] = useState("medical coding remote");
-  const [remoteOnly, setRemoteOnly] = useState(true);
+  const [q, setQ] = useState("");
+  const [remoteOnly, setRemoteOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<{
     items: Job[];

@@ -20,12 +20,18 @@ export async function GET(req: Request) {
   const where: any = {};
   if (remoteOnly) where.remote = true;
   if (q) {
-    where.OR = [
-      { title: { contains: q, mode: "insensitive" } },
-      { company: { contains: q, mode: "insensitive" } },
-      { location: { contains: q, mode: "insensitive" } },
-      { description: { contains: q, mode: "insensitive" } },
-    ];
+    // Match each word separately (AND across words, OR across fields) so a
+    // multi-word query like "medical coding remote" matches listings that
+    // contain those words anywhere — not as one literal phrase.
+    const terms = q.split(/\s+/).filter(Boolean).slice(0, 6);
+    where.AND = terms.map((t) => ({
+      OR: [
+        { title: { contains: t, mode: "insensitive" } },
+        { company: { contains: t, mode: "insensitive" } },
+        { location: { contains: t, mode: "insensitive" } },
+        { description: { contains: t, mode: "insensitive" } },
+      ],
+    }));
   }
 
   const [items, total] = await Promise.all([
