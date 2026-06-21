@@ -25,6 +25,7 @@ export async function POST(req: Request) {
       query: body.query,
       target: body.target ?? 1000,
       maxDaysOld: body.maxDaysOld, // undefined = no day cap (maximize results)
+      reset: !!body.reset, // clean rebuild when requested
     });
     return NextResponse.json(result);
   } catch (e: any) {

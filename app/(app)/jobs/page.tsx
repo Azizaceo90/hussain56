@@ -33,8 +33,8 @@ export default function JobsPage() {
   const { session } = useData();
   const isAdmin = session.user.role === "admin";
 
-  const [q, setQ] = useState("");
-  const [remoteOnly, setRemoteOnly] = useState(false);
+  const [q, setQ] = useState("medical coding");
+  const [remoteOnly, setRemoteOnly] = useState(true);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<{
     items: Job[];
@@ -77,8 +77,9 @@ export default function JobsPage() {
     const res = await fetch("/api/jobs/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // Empty query => server runs the broad campaign; a typed query is precise.
-      body: JSON.stringify({ query: q.trim() || undefined, target: 1000 }),
+      // Empty query => server runs the medical-coding campaign; a typed query
+      // is precise. reset rebuilds a clean, on-topic set.
+      body: JSON.stringify({ query: undefined, target: 1000, reset: true }),
     });
     const result = await res.json().catch(() => ({}));
     setSyncing(false);

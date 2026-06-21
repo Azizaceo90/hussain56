@@ -17,18 +17,19 @@ export const DEFAULT_COUNTRIES = ["us", "ca"];
 // deduped by Adzuna id across all searches.
 export type JobQuery = { what?: string; whatOr?: string; label: string };
 
+// Kept intentionally medical-focused so results stay on-topic (no generic
+// software "coding" roles). Every search anchors on medical/health terms.
 export const DEFAULT_QUERIES: JobQuery[] = [
   { what: "medical coder", label: "medical coder" },
   { what: "medical coding", label: "medical coding" },
+  { what: "medical coding specialist", label: "medical coding specialist" },
   { what: "medical biller", label: "medical biller" },
-  { what: "coding specialist", label: "coding specialist" },
-  { what: "health information technician", label: "health information technician" },
-  { what: "inpatient coder", label: "inpatient coder" },
-  { what: "outpatient coder", label: "outpatient coder" },
+  { what: "medical billing coding", label: "medical billing & coding" },
+  { what: "health information technician", label: "health information tech" },
+  { what: "inpatient medical coder", label: "inpatient coder" },
+  { what: "outpatient medical coder", label: "outpatient coder" },
   { what: "risk adjustment coder", label: "risk adjustment coder" },
-  // Broad nets: medical jobs mentioning ANY of these coding-related words.
-  { what: "medical", whatOr: "coder coding biller billing", label: "medical + coding/billing" },
-  { whatOr: "coder coding", label: "any coder/coding" },
+  { what: "remote medical coder", label: "remote medical coder" },
 ];
 
 export function adzunaConfigured(): boolean {
@@ -94,6 +95,7 @@ export async function syncJobs(opts?: {
   countries?: string[];
   target?: number;
   maxDaysOld?: number;
+  reset?: boolean;
 }): Promise<{
   configured: boolean;
   fetched: number;
@@ -171,6 +173,12 @@ export async function syncJobs(opts?: {
   }
 
   const breakdown = [...breakdownMap.entries()].map(([label, count]) => ({ label, count }));
+
+  // Optional clean rebuild: drop existing listings so stale/off-topic roles
+  // from earlier syncs don't linger.
+  if (opts?.reset) {
+    await prisma.jobListing.deleteMany({});
+  }
 
   // Figure out which ids are genuinely new (for an accurate "created" count).
   const ids = [...unique.keys()];
