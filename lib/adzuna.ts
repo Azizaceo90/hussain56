@@ -122,7 +122,7 @@ export async function syncJobs(opts?: {
       : DEFAULT_COUNTRIES;
   const target = Math.min(opts?.target ?? 1000, 1000);
   const resultsPerPage = 50; // Adzuna max
-  const maxPagesPerQuery = 10;
+  const maxPagesPerQuery = 20; // page deep into each result set
   const BATCH = 4;
 
   // Dedupe across all countries+queries. Key includes country to avoid id
@@ -144,7 +144,9 @@ export async function syncJobs(opts?: {
               page: p,
               resultsPerPage,
               maxDaysOld: opts?.maxDaysOld,
-              sortByDate: true,
+              // Relevance ranking (not date) exposes the full result set so deep
+              // pagination returns distinct roles instead of the same newest few.
+              sortByDate: false,
             }).catch(() => [] as AdzunaResult[])
           );
         }
