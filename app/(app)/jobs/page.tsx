@@ -86,8 +86,15 @@ export default function JobsPage() {
       setSyncMsg(result.error || "Sync failed");
       return;
     }
+    const detail =
+      Array.isArray(result.breakdown) && result.breakdown.length
+        ? " · " +
+          result.breakdown
+            .map((b: { label: string; count: number }) => `${b.label}: ${b.count}`)
+            .join(", ")
+        : "";
     setSyncMsg(
-      `Synced ${result.fetched} roles (${result.created} new) for “${result.query}”.`
+      `Synced ${result.fetched} roles (${result.created} new) for “${result.query}”.${detail}`
     );
     setPage(1);
     load({ page: 1 });

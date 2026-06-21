@@ -10,17 +10,23 @@ export const DEFAULT_QUERY = "medical coding remote";
 export const DEFAULT_COUNTRY = "us";
 
 // A campaign of related searches run together to maximize coverage of remote
-// medical-coding roles (Adzuna ranks by relevance per query, so variants pull
-// different listings). Results are merged and deduped by Adzuna id.
-export const DEFAULT_QUERIES = [
-  "medical coding remote",
-  "medical coder remote",
-  "remote medical coding",
-  "medical coder",
-  "medical coding",
-  "medical billing and coding",
-  "certified professional coder",
-  "risk adjustment coder",
+// medical-coding roles. `whatOr` uses Adzuna's "any of these words" mode to
+// widen results well beyond strict phrase matching. Results are merged and
+// deduped by Adzuna id across all searches.
+export type JobQuery = { what?: string; whatOr?: string; label: string };
+
+export const DEFAULT_QUERIES: JobQuery[] = [
+  { what: "medical coder", label: "medical coder" },
+  { what: "medical coding", label: "medical coding" },
+  { what: "medical biller", label: "medical biller" },
+  { what: "coding specialist", label: "coding specialist" },
+  { what: "health information technician", label: "health information technician" },
+  { what: "inpatient coder", label: "inpatient coder" },
+  { what: "outpatient coder", label: "outpatient coder" },
+  { what: "risk adjustment coder", label: "risk adjustment coder" },
+  // Broad nets: medical jobs mentioning ANY of these coding-related words.
+  { what: "medical", whatOr: "coder coding biller billing", label: "medical + coding/billing" },
+  { whatOr: "coder coding", label: "any coder/coding" },
 ];
 
 export function adzunaConfigured(): boolean {
@@ -44,7 +50,8 @@ type AdzunaResult = {
 
 async function fetchPage(opts: {
   country: string;
-  query: string;
+  what?: string;
+  whatOr?: string;
   page: number;
   resultsPerPage: number;
   maxDaysOld?: number;
@@ -54,9 +61,10 @@ async function fetchPage(opts: {
     app_id: process.env.ADZUNA_APP_ID!,
     app_key: process.env.ADZUNA_APP_KEY!,
     results_per_page: String(opts.resultsPerPage),
-    what: opts.query,
     "content-type": "application/json",
   });
+  if (opts.what) params.set("what", opts.what);
+  if (opts.whatOr) params.set("what_or", opts.whatOr);
   if (opts.maxDaysOld) params.set("max_days_old", String(opts.maxDaysOld));
   if (opts.sortByDate) params.set("sort_by", "date");
 
@@ -79,40 +87,49 @@ function looksRemote(r: AdzunaResult): boolean {
 // Adzuna id. Returns how many were fetched and how many were new.
 export async function syncJobs(opts?: {
   query?: string;
-  queries?: string[];
+  queries?: JobQuery[];
   country?: string;
   target?: number;
   maxDaysOld?: number;
-}): Promise<{ configured: boolean; fetched: number; created: number; query: string }> {
+}): Promise<{
+  configured: boolean;
+  fetched: number;
+  created: number;
+  query: string;
+  breakdown: { label: string; count: number }[];
+}> {
   // A single typed query runs precisely; otherwise run the broad campaign.
-  const queries =
+  const queries: JobQuery[] =
     opts?.queries && opts.queries.length
       ? opts.queries
       : opts?.query?.trim()
-        ? [opts.query.trim()]
+        ? [{ what: opts.query.trim(), label: opts.query.trim() }]
         : DEFAULT_QUERIES;
   const label = opts?.query?.trim() || "remote medical coding (campaign)";
 
   if (!adzunaConfigured())
-    return { configured: false, fetched: 0, created: 0, query: label };
+    return { configured: false, fetched: 0, created: 0, query: label, breakdown: [] };
 
   const country = opts?.country || DEFAULT_COUNTRY;
   const target = Math.min(opts?.target ?? 1000, 1000);
   const resultsPerPage = 50; // Adzuna max
-  const maxPagesPerQuery = 10; // up to 500 per query before moving on
+  const maxPagesPerQuery = 20; // up to 1000 per query before moving on
   const BATCH = 4;
 
   // Dedupe across all queries by Adzuna id.
   const unique = new Map<string, AdzunaResult>();
+  const breakdown: { label: string; count: number }[] = [];
 
   outer: for (const query of queries) {
+    const before = unique.size;
     for (let start = 1; start <= maxPagesPerQuery; start += BATCH) {
       const batch: Promise<AdzunaResult[]>[] = [];
       for (let p = start; p < start + BATCH && p <= maxPagesPerQuery; p++) {
         batch.push(
           fetchPage({
             country,
-            query,
+            what: query.what,
+            whatOr: query.whatOr,
             page: p,
             resultsPerPage,
             maxDaysOld: opts?.maxDaysOld,
@@ -126,9 +143,13 @@ export async function syncJobs(opts?: {
         if (page.length > 0) emptyRun = false;
         for (const r of page) if (r.id && !unique.has(r.id)) unique.set(r.id, r);
       }
-      if (unique.size >= target) break outer;
       if (emptyRun) break; // exhausted this query; move to the next
+      if (unique.size >= target) {
+        breakdown.push({ label: query.label, count: unique.size - before });
+        break outer;
+      }
     }
+    breakdown.push({ label: query.label, count: unique.size - before });
   }
 
   // Figure out which ids are genuinely new (for an accurate "created" count).
@@ -165,5 +186,5 @@ export async function syncJobs(opts?: {
     if (!existingIds.has(r.id)) created++;
   }
 
-  return { configured: true, fetched: unique.size, created, query: label };
+  return { configured: true, fetched: unique.size, created, query: label, breakdown };
 }
