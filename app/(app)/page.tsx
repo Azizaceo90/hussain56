@@ -9,7 +9,8 @@ import { statusTone } from "@/components/ui";
 
 export default function Dashboard() {
   useRefreshOnMount();
-  const { session, timeEntries, contracts, expenses, payroll, refreshData } = useData();
+  const { session, users, timeEntries, contracts, expenses, payroll, refreshData } =
+    useData();
   const isAdmin = session.user.role === "admin";
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState<string | null>(null);
@@ -29,6 +30,17 @@ export default function Dashboard() {
     else setSeedMsg(data.error || "Could not load sample data.");
     await refreshData();
   }
+
+  // Show the demo helper only while the workspace is essentially empty (admin
+  // only): no employees and no records yet. It hides once real data exists.
+  const employeeCount = users.filter((u) => u.role !== "admin").length;
+  const isEmptyWorkspace =
+    employeeCount === 0 &&
+    timeEntries.length === 0 &&
+    expenses.length === 0 &&
+    payroll.length === 0 &&
+    contracts.length === 0;
+  const showDemoButton = isAdmin && isEmptyWorkspace;
 
   const openShift = timeEntries.find((t) => !t.clockOut);
   const pendingContracts = contracts.filter((c) => c.status === "pending");
@@ -57,7 +69,7 @@ export default function Dashboard() {
                 : "Here's your snapshot for today."}
             </p>
           </div>
-          {isAdmin && (
+          {showDemoButton && (
             <div className="text-right">
               <Button
                 variant="secondary"
@@ -67,7 +79,10 @@ export default function Dashboard() {
               >
                 {seeding ? "Loading…" : "✨ Load sample data"}
               </Button>
-              {seedMsg && <p className="text-xs text-white/80 mt-1">{seedMsg}</p>}
+              <p className="text-[11px] text-white/70 mt-1">
+                Optional — fills sections with demo records you can delete later.
+              </p>
+              {seedMsg && <p className="text-xs text-white/90 mt-1">{seedMsg}</p>}
             </div>
           )}
         </div>
