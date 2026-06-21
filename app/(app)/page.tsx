@@ -1,15 +1,34 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useData, useRefreshOnMount } from "@/components/DataProvider";
-import { Card, EmptyState, PageHeader, StatCard, Badge, money } from "@/components/ui";
+import { Button, Card, EmptyState, PageHeader, StatCard, Badge, money } from "@/components/ui";
 import { fmtDate, hoursBetween } from "@/lib/dates";
 import { statusTone } from "@/components/ui";
 
 export default function Dashboard() {
   useRefreshOnMount();
-  const { session, timeEntries, contracts, expenses, payroll } = useData();
+  const { session, timeEntries, contracts, expenses, payroll, refreshData } = useData();
   const isAdmin = session.user.role === "admin";
+  const [seeding, setSeeding] = useState(false);
+  const [seedMsg, setSeedMsg] = useState<string | null>(null);
+
+  async function loadDemo() {
+    setSeeding(true);
+    setSeedMsg(null);
+    const res = await fetch("/api/demo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json().catch(() => ({}));
+    setSeeding(false);
+    if (data.alreadySeeded) setSeedMsg("Sample data already loaded.");
+    else if (data.seeded) setSeedMsg("Sample data loaded across all sections.");
+    else setSeedMsg(data.error || "Could not load sample data.");
+    await refreshData();
+  }
 
   const openShift = timeEntries.find((t) => !t.clockOut);
   const pendingContracts = contracts.filter((c) => c.status === "pending");
@@ -22,11 +41,37 @@ export default function Dashboard() {
     .reduce((sum, t) => sum + hoursBetween(t.clockIn, t.clockOut!), 0);
 
   return (
-    <div>
-      <PageHeader
-        title={`Welcome, ${session.user.name.split(" ")[0]}`}
-        subtitle={isAdmin ? "Team overview" : "Your snapshot"}
-      />
+    <div className="animate-fade-up">
+      {/* Gradient hero */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-600 via-brand-600 to-violet-600 text-white p-6 lg:p-8 mb-6 shadow-card">
+        <div className="absolute -right-10 -top-10 w-48 h-48 rounded-full bg-white/10" />
+        <div className="absolute right-16 bottom-0 w-32 h-32 rounded-full bg-white/5" />
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold">
+              Welcome back, {session.user.name.split(" ")[0]} 👋
+            </h1>
+            <p className="text-white/80 text-sm mt-1">
+              {isAdmin
+                ? "Here's how the team is doing today."
+                : "Here's your snapshot for today."}
+            </p>
+          </div>
+          {isAdmin && (
+            <div className="text-right">
+              <Button
+                variant="secondary"
+                onClick={loadDemo}
+                disabled={seeding}
+                className="bg-white/95"
+              >
+                {seeding ? "Loading…" : "✨ Load sample data"}
+              </Button>
+              {seedMsg && <p className="text-xs text-white/80 mt-1">{seedMsg}</p>}
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
@@ -34,21 +79,25 @@ export default function Dashboard() {
           value={weekHours.toFixed(1)}
           hint={isAdmin ? "All employees" : "Your total"}
           tone="blue"
+          icon="◷"
         />
         <StatCard
           label="Pending contracts"
           value={pendingContracts.length}
           tone="amber"
+          icon="✎"
         />
         <StatCard
           label="Pending expenses"
           value={pendingExpenses.length}
           tone="amber"
+          icon="$"
         />
         <StatCard
           label={isAdmin ? "Payroll pending" : "You're owed"}
           value={money(pendingPayroll.reduce((s, p) => s + p.gross, 0))}
           tone="green"
+          icon="◎"
         />
       </div>
 

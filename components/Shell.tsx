@@ -55,17 +55,22 @@ export function Shell({ children }: { children: ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cx(
-          "fixed lg:static inset-y-0 left-0 z-40 w-60 bg-white border-r border-slate-200 flex flex-col transition-transform",
+          "fixed lg:static inset-y-0 left-0 z-40 w-60 bg-white/95 backdrop-blur border-r border-slate-200 flex flex-col transition-transform",
           open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <div className="h-14 flex items-center gap-2 px-5 border-b border-slate-100">
-          <div className="w-8 h-8 rounded-lg bg-brand-600 text-white grid place-items-center font-bold">
+        <div className="h-16 flex items-center gap-2.5 px-5 border-b border-slate-100">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white grid place-items-center font-bold shadow-sm">
             O
           </div>
-          <span className="font-bold text-slate-900">Ops Hub</span>
+          <div className="leading-tight">
+            <div className="font-bold text-slate-900">Ops Hub</div>
+            <div className="text-[10px] uppercase tracking-wide text-slate-400">
+              Operations
+            </div>
+          </div>
         </div>
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto scroll-thin">
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto scroll-thin">
           {items.map((item) => {
             const active =
               item.href === "/"
@@ -77,13 +82,23 @@ export function Shell({ children }: { children: ReactNode }) {
                 href={item.href}
                 onClick={() => setOpen(false)}
                 className={cx(
-                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  "relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
                   active
-                    ? "bg-brand-50 text-brand-700"
+                    ? "bg-gradient-to-r from-brand-50 to-violet-50 text-brand-700 shadow-sm"
                     : "text-slate-600 hover:bg-slate-100"
                 )}
               >
-                <span className="w-5 text-center text-slate-400">{item.icon}</span>
+                {active && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-brand-600" />
+                )}
+                <span
+                  className={cx(
+                    "w-5 text-center",
+                    active ? "text-brand-600" : "text-slate-400"
+                  )}
+                >
+                  {item.icon}
+                </span>
                 {item.label}
               </Link>
             );
@@ -105,7 +120,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-20">
+        <header className="h-16 bg-white/80 backdrop-blur border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-20">
           <button
             className="lg:hidden text-slate-500 text-xl"
             onClick={() => setOpen(true)}

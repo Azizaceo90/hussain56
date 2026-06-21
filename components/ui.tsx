@@ -26,7 +26,7 @@ export function Card({
   return (
     <div
       className={cx(
-        "bg-white border border-slate-200 rounded-xl shadow-card",
+        "bg-white/90 backdrop-blur border border-slate-200/80 rounded-2xl shadow-card transition-shadow hover:shadow-md",
         className
       )}
     >
@@ -36,7 +36,7 @@ export function Card({
           <div className="flex items-center gap-2">{actions}</div>
         </div>
       )}
-      <div className={title || actions ? "p-5" : "p-5"}>{children}</div>
+      <div className="p-5">{children}</div>
     </div>
   );
 }
@@ -66,26 +66,44 @@ export function StatCard({
   value,
   hint,
   tone = "default",
+  icon,
 }: {
   label: string;
   value: ReactNode;
   hint?: string;
   tone?: "default" | "green" | "amber" | "blue" | "rose";
+  icon?: ReactNode;
 }) {
-  const tones: Record<string, string> = {
-    default: "text-slate-900",
-    green: "text-emerald-600",
-    amber: "text-amber-600",
-    blue: "text-brand-600",
-    rose: "text-rose-600",
+  const tones: Record<string, { text: string; chip: string; ring: string }> = {
+    default: { text: "text-slate-900", chip: "bg-slate-100 text-slate-500", ring: "before:bg-slate-300" },
+    green: { text: "text-emerald-600", chip: "bg-emerald-100 text-emerald-600", ring: "before:bg-emerald-400" },
+    amber: { text: "text-amber-600", chip: "bg-amber-100 text-amber-600", ring: "before:bg-amber-400" },
+    blue: { text: "text-brand-600", chip: "bg-brand-100 text-brand-600", ring: "before:bg-brand-500" },
+    rose: { text: "text-rose-600", chip: "bg-rose-100 text-rose-600", ring: "before:bg-rose-400" },
   };
+  const t = tones[tone];
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-card p-5">
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-        {label}
+    <div
+      className={cx(
+        "relative overflow-hidden bg-white/90 backdrop-blur border border-slate-200/80 rounded-2xl shadow-card p-5 transition-shadow hover:shadow-md",
+        "before:absolute before:left-0 before:top-0 before:h-full before:w-1",
+        t.ring
+      )}
+    >
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            {label}
+          </div>
+          <div className={cx("text-2xl font-bold mt-1", t.text)}>{value}</div>
+          {hint && <div className="text-xs text-slate-400 mt-1">{hint}</div>}
+        </div>
+        {icon && (
+          <div className={cx("w-9 h-9 rounded-xl grid place-items-center text-lg", t.chip)}>
+            {icon}
+          </div>
+        )}
       </div>
-      <div className={cx("text-2xl font-bold mt-1", tones[tone])}>{value}</div>
-      {hint && <div className="text-xs text-slate-400 mt-1">{hint}</div>}
     </div>
   );
 }
