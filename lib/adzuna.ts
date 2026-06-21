@@ -8,6 +8,8 @@ const BASE = "https://api.adzuna.com/v1/api/jobs";
 
 export const DEFAULT_QUERY = "medical coding remote";
 export const DEFAULT_COUNTRY = "us";
+// Indexes to pull from by default (US + Canada).
+export const DEFAULT_COUNTRIES = ["us", "ca"];
 
 // A campaign of related searches run together to maximize coverage of remote
 // medical-coding roles. `whatOr` uses Adzuna's "any of these words" mode to
@@ -89,6 +91,7 @@ export async function syncJobs(opts?: {
   query?: string;
   queries?: JobQuery[];
   country?: string;
+  countries?: string[];
   target?: number;
   maxDaysOld?: number;
 }): Promise<{
@@ -110,47 +113,62 @@ export async function syncJobs(opts?: {
   if (!adzunaConfigured())
     return { configured: false, fetched: 0, created: 0, query: label, breakdown: [] };
 
-  const country = opts?.country || DEFAULT_COUNTRY;
+  // Each country is a separate Adzuna index, so querying several multiplies the
+  // pool. Listings are tagged by country and deduped by `${country}:${id}`.
+  const countries = opts?.country
+    ? [opts.country]
+    : opts?.countries && opts.countries.length
+      ? opts.countries
+      : DEFAULT_COUNTRIES;
   const target = Math.min(opts?.target ?? 1000, 1000);
   const resultsPerPage = 50; // Adzuna max
-  const maxPagesPerQuery = 20; // up to 1000 per query before moving on
+  const maxPagesPerQuery = 10;
   const BATCH = 4;
 
-  // Dedupe across all queries by Adzuna id.
-  const unique = new Map<string, AdzunaResult>();
-  const breakdown: { label: string; count: number }[] = [];
+  // Dedupe across all countries+queries. Key includes country to avoid id
+  // collisions between indexes; value carries the source country.
+  const unique = new Map<string, { country: string; r: AdzunaResult }>();
+  const breakdownMap = new Map<string, number>();
 
-  outer: for (const query of queries) {
-    const before = unique.size;
-    for (let start = 1; start <= maxPagesPerQuery; start += BATCH) {
-      const batch: Promise<AdzunaResult[]>[] = [];
-      for (let p = start; p < start + BATCH && p <= maxPagesPerQuery; p++) {
-        batch.push(
-          fetchPage({
-            country,
-            what: query.what,
-            whatOr: query.whatOr,
-            page: p,
-            resultsPerPage,
-            maxDaysOld: opts?.maxDaysOld,
-            sortByDate: true,
-          }).catch(() => [] as AdzunaResult[])
-        );
+  outer: for (const country of countries) {
+    for (const query of queries) {
+      const before = unique.size;
+      for (let start = 1; start <= maxPagesPerQuery; start += BATCH) {
+        const batch: Promise<AdzunaResult[]>[] = [];
+        for (let p = start; p < start + BATCH && p <= maxPagesPerQuery; p++) {
+          batch.push(
+            fetchPage({
+              country,
+              what: query.what,
+              whatOr: query.whatOr,
+              page: p,
+              resultsPerPage,
+              maxDaysOld: opts?.maxDaysOld,
+              sortByDate: true,
+            }).catch(() => [] as AdzunaResult[])
+          );
+        }
+        const pages = await Promise.all(batch);
+        let emptyRun = true;
+        for (const page of pages) {
+          if (page.length > 0) emptyRun = false;
+          for (const r of page) {
+            if (!r.id) continue;
+            const key = `${country}:${r.id}`;
+            if (!unique.has(key)) unique.set(key, { country, r });
+          }
+        }
+        if (emptyRun) break;
+        if (unique.size >= target) {
+          breakdownMap.set(query.label, (breakdownMap.get(query.label) ?? 0) + unique.size - before);
+          break outer;
+        }
       }
-      const pages = await Promise.all(batch);
-      let emptyRun = true;
-      for (const page of pages) {
-        if (page.length > 0) emptyRun = false;
-        for (const r of page) if (r.id && !unique.has(r.id)) unique.set(r.id, r);
-      }
-      if (emptyRun) break; // exhausted this query; move to the next
-      if (unique.size >= target) {
-        breakdown.push({ label: query.label, count: unique.size - before });
-        break outer;
-      }
+      breakdownMap.set(query.label, (breakdownMap.get(query.label) ?? 0) + unique.size - before);
     }
-    breakdown.push({ label: query.label, count: unique.size - before });
   }
+
+  const breakdown = [...breakdownMap.entries()].map(([label, count]) => ({ label, count }));
 
   // Figure out which ids are genuinely new (for an accurate "created" count).
   const ids = [...unique.keys()];
@@ -161,12 +179,15 @@ export async function syncJobs(opts?: {
   const existingIds = new Set(existing.map((e) => e.externalId));
   let created = 0;
 
-  for (const r of unique.values()) {
+  for (const [externalId, { country, r }] of unique.entries()) {
+    const loc = r.location?.display_name
+      ? `${r.location.display_name}, ${country.toUpperCase()}`
+      : country.toUpperCase();
     const data = {
       source: "adzuna",
       title: r.title?.replace(/<\/?[^>]+>/g, "").trim() || "Untitled role",
       company: r.company?.display_name ?? null,
-      location: r.location?.display_name ?? null,
+      location: loc,
       description: r.description?.replace(/<\/?[^>]+>/g, "").trim() ?? null,
       url: r.redirect_url ?? null,
       salaryMin: r.salary_min ?? null,
@@ -179,11 +200,11 @@ export async function syncJobs(opts?: {
       fetchedAt: new Date(),
     };
     await prisma.jobListing.upsert({
-      where: { externalId: r.id },
-      create: { externalId: r.id, ...data },
+      where: { externalId },
+      create: { externalId, ...data },
       update: data,
     });
-    if (!existingIds.has(r.id)) created++;
+    if (!existingIds.has(externalId)) created++;
   }
 
   return { configured: true, fetched: unique.size, created, query: label, breakdown };
