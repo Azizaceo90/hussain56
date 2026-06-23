@@ -17,36 +17,15 @@ export const DEFAULT_COUNTRIES = ["us", "ca"];
 // deduped by Adzuna id across all searches.
 export type JobQuery = { what?: string; whatOr?: string; label: string };
 
-// Kept intentionally focused so results stay on-topic. Covers remote medical
-// coding plus the full range of payroll roles.
+// Lean, high-yield set. Broad anchors ("payroll", "medical coding") capture all
+// the specific titles (specialist, coordinator, analyst, clerk, tax, etc.) in a
+// few paged searches instead of dozens of calls that trip Adzuna rate limits.
 export const DEFAULT_QUERIES: JobQuery[] = [
-  // Medical coding
   { what: "medical coder", label: "medical coder" },
   { what: "medical coding", label: "medical coding" },
-  { what: "medical coding specialist", label: "medical coding specialist" },
-  { what: "medical biller", label: "medical biller" },
-  { what: "medical billing coding", label: "medical billing & coding" },
-  { what: "health information technician", label: "health information tech" },
-  { what: "inpatient medical coder", label: "inpatient coder" },
-  { what: "outpatient medical coder", label: "outpatient coder" },
-  { what: "risk adjustment coder", label: "risk adjustment coder" },
-  { what: "remote medical coder", label: "remote medical coder" },
-  // Payroll
+  { what: "medical biller", label: "medical billing" },
   { what: "payroll specialist", label: "payroll specialist" },
-  { what: "payroll coordinator", label: "payroll coordinator" },
-  { what: "payroll administrator", label: "payroll administrator" },
-  { what: "payroll analyst", label: "payroll analyst" },
-  { what: "payroll clerk", label: "payroll clerk" },
-  { what: "junior payroll specialist", label: "junior payroll specialist" },
-  { what: "payroll technician", label: "payroll technician" },
-  { what: "payroll associate", label: "payroll associate" },
-  { what: "payroll processing specialist", label: "payroll processing specialist" },
-  { what: "payroll tax specialist", label: "payroll tax specialist" },
-  { what: "multi-state payroll specialist", label: "multi-state payroll specialist" },
-  { what: "corporate payroll specialist", label: "corporate payroll specialist" },
-  { what: "payroll compliance specialist", label: "payroll compliance specialist" },
-  { what: "payroll operations specialist", label: "payroll operations specialist" },
-  { what: "payroll accountant", label: "payroll accountant" },
+  { what: "payroll", label: "payroll (all roles)" },
 ];
 
 export function adzunaConfigured(): boolean {
@@ -141,8 +120,10 @@ export async function syncJobs(opts?: {
       : DEFAULT_COUNTRIES;
   const target = Math.min(opts?.target ?? 1000, 1000);
   const resultsPerPage = 50; // Adzuna max
-  const maxPagesPerQuery = 6; // many queries now; keep calls/time in check
-  const BATCH = 4;
+  const maxPagesPerQuery = 12; // fewer queries now, so page deeper for volume
+  const BATCH = 3; // modest concurrency to respect Adzuna rate limits
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   // Dedupe across all countries+queries. Key includes country to avoid id
   // collisions between indexes; value carries the source country.
@@ -184,6 +165,8 @@ export async function syncJobs(opts?: {
           breakdownMap.set(query.label, (breakdownMap.get(query.label) ?? 0) + unique.size - before);
           break outer;
         }
+        // Throttle between batches to stay under Adzuna's per-minute limit.
+        await sleep(300);
       }
       breakdownMap.set(query.label, (breakdownMap.get(query.label) ?? 0) + unique.size - before);
     }
@@ -192,8 +175,9 @@ export async function syncJobs(opts?: {
   const breakdown = [...breakdownMap.entries()].map(([label, count]) => ({ label, count }));
 
   // Optional clean rebuild: drop existing listings so stale/off-topic roles
-  // from earlier syncs don't linger.
-  if (opts?.reset) {
+  // from earlier syncs don't linger. Guard: only wipe when we actually fetched
+  // results, so a rate-limited/empty sync never destroys the existing set.
+  if (opts?.reset && unique.size > 0) {
     await prisma.jobListing.deleteMany({});
   }
 
