@@ -77,6 +77,32 @@ async function fetchPage(opts: {
   return Array.isArray(data.results) ? data.results : [];
 }
 
+// Keep only genuine medical-coding/billing or payroll roles (judged by title),
+// so deep pagination can't pollute the board with unrelated industries.
+function isRelevantTitle(title?: string): boolean {
+  if (!title) return false;
+  const t = title.toLowerCase();
+  // Any payroll role.
+  if (t.includes("payroll")) return true;
+  // Explicit medical coding/billing roles.
+  if (
+    t.includes("medical coder") ||
+    t.includes("medical coding") ||
+    t.includes("medical biller") ||
+    t.includes("medical billing") ||
+    t.includes("health information")
+  )
+    return true;
+  // Coder/coding/biller terms only when in a healthcare context (excludes
+  // software "coding" jobs).
+  const coding = /(coder|coding|biller|billing|\bhim\b)/.test(t);
+  const clinical =
+    /(medical|clinical|health|hospital|patient|hcc|risk adjustment|inpatient|outpatient|icd|cpc|cpt)/.test(
+      t
+    );
+  return coding && clinical;
+}
+
 function looksRemote(r: AdzunaResult): boolean {
   const hay = `${r.title ?? ""} ${r.description ?? ""} ${r.location?.display_name ?? ""}`.toLowerCase();
   return /\bremote\b|work from home|telecommute|wfh/.test(hay);
@@ -167,6 +193,8 @@ export async function syncJobs(opts?: {
           if (page.length > 0) emptyRun = false;
           for (const r of page) {
             if (!r.id) continue;
+            // Discard off-topic roles so only real coding/payroll jobs are kept.
+            if (!isRelevantTitle(r.title)) continue;
             const key = `${country}:${r.id}`;
             if (!unique.has(key)) unique.set(key, { country, r });
           }
