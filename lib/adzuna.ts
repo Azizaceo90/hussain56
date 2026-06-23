@@ -98,6 +98,7 @@ export async function syncJobs(opts?: {
   created: number;
   query: string;
   breakdown: { label: string; count: number }[];
+  note?: string;
 }> {
   // A single typed query runs precisely; otherwise run the broad campaign.
   const queries: JobQuery[] =
@@ -129,6 +130,14 @@ export async function syncJobs(opts?: {
   // collisions between indexes; value carries the source country.
   const unique = new Map<string, { country: string; r: AdzunaResult }>();
   const breakdownMap = new Map<string, number>();
+  // Capture the first API error so an empty sync can explain itself.
+  const errors: string[] = [];
+  const guarded = (p: Promise<AdzunaResult[]>) =>
+    p.catch((e) => {
+      const msg = String(e?.message || e);
+      if (errors.length < 3) errors.push(msg);
+      return [] as AdzunaResult[];
+    });
 
   outer: for (const country of countries) {
     for (const query of queries) {
@@ -137,17 +146,19 @@ export async function syncJobs(opts?: {
         const batch: Promise<AdzunaResult[]>[] = [];
         for (let p = start; p < start + BATCH && p <= maxPagesPerQuery; p++) {
           batch.push(
-            fetchPage({
-              country,
-              what: query.what,
-              whatOr: query.whatOr,
-              page: p,
-              resultsPerPage,
-              maxDaysOld: opts?.maxDaysOld,
-              // Relevance ranking (not date) exposes the full result set so deep
-              // pagination returns distinct roles instead of the same newest few.
-              sortByDate: false,
-            }).catch(() => [] as AdzunaResult[])
+            guarded(
+              fetchPage({
+                country,
+                what: query.what,
+                whatOr: query.whatOr,
+                page: p,
+                resultsPerPage,
+                maxDaysOld: opts?.maxDaysOld,
+                // Relevance ranking (not date) exposes the full result set so deep
+                // pagination returns distinct roles instead of the same newest few.
+                sortByDate: false,
+              })
+            )
           );
         }
         const pages = await Promise.all(batch);
@@ -218,5 +229,10 @@ export async function syncJobs(opts?: {
     if (!existingIds.has(externalId)) created++;
   }
 
-  return { configured: true, fetched: unique.size, created, query: label, breakdown };
+  const note =
+    unique.size === 0 && errors.length
+      ? `No results returned. First API error: ${errors[0]}`
+      : undefined;
+
+  return { configured: true, fetched: unique.size, created, query: label, breakdown, note };
 }

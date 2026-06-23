@@ -95,7 +95,8 @@ export default function JobsPage() {
             .join(", ")
         : "";
     setSyncMsg(
-      `Synced ${result.fetched} roles (${result.created} new) for “${result.query}”.${detail}`
+      `Synced ${result.fetched} roles (${result.created} new) for “${result.query}”.${detail}` +
+        (result.note ? ` — ${result.note}` : "")
     );
     setPage(1);
     load({ page: 1 });
