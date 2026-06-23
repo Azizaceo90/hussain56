@@ -20,12 +20,14 @@ export type JobQuery = { what?: string; whatOr?: string; label: string };
 // Lean, high-yield set. Broad anchors ("payroll", "medical coding") capture all
 // the specific titles (specialist, coordinator, analyst, clerk, tax, etc.) in a
 // few paged searches instead of dozens of calls that trip Adzuna rate limits.
+// Interleaved so both categories are pulled before any global cap is reached.
 export const DEFAULT_QUERIES: JobQuery[] = [
-  { what: "medical coder", label: "medical coder" },
-  { what: "medical coding", label: "medical coding" },
-  { what: "medical biller", label: "medical billing" },
-  { what: "payroll specialist", label: "payroll specialist" },
   { what: "payroll", label: "payroll (all roles)" },
+  { what: "medical coder", label: "medical coder" },
+  { what: "payroll specialist", label: "payroll specialist" },
+  { what: "medical coding", label: "medical coding" },
+  { what: "payroll administrator", label: "payroll administrator" },
+  { what: "medical biller", label: "medical billing" },
 ];
 
 export function adzunaConfigured(): boolean {
@@ -147,7 +149,7 @@ export async function syncJobs(opts?: {
       : DEFAULT_COUNTRIES;
   const target = Math.min(opts?.target ?? 1000, 1000);
   const resultsPerPage = 50; // Adzuna max
-  const maxPagesPerQuery = 12; // fewer queries now, so page deeper for volume
+  const maxPagesPerQuery = 5; // cap each search so no one term eats the budget
   const BATCH = 3; // modest concurrency to respect Adzuna rate limits
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
