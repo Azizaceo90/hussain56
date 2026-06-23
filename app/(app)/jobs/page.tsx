@@ -33,7 +33,7 @@ export default function JobsPage() {
   const { session } = useData();
   const isAdmin = session.user.role === "admin";
 
-  const [q, setQ] = useState("medical coding");
+  const [q, setQ] = useState("");
   const [remoteOnly, setRemoteOnly] = useState(true);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<{
@@ -105,7 +105,7 @@ export default function JobsPage() {
     <div>
       <PageHeader
         title="Jobs"
-        subtitle="Remote medical-coding roles, refreshed daily from Adzuna"
+        subtitle="Remote medical-coding & payroll roles, refreshed daily from Adzuna"
         actions={
           isAdmin && (
             <Button onClick={sync} disabled={syncing}>
@@ -149,7 +149,7 @@ export default function JobsPage() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && search()}
-              placeholder="medical coding remote"
+              placeholder="medical coding, payroll specialist…"
             />
           </div>
           <label className="flex items-center gap-2 text-sm text-slate-600 pb-2">
@@ -181,7 +181,7 @@ export default function JobsPage() {
             title="No roles yet"
             description={
               isAdmin
-                ? "Click “Sync 1000 roles” to pull the latest remote medical-coding jobs from Adzuna."
+                ? "Click “Sync 1000 roles” to pull the latest remote medical-coding & payroll jobs from Adzuna."
                 : "Check back soon — an admin will sync the latest roles."
             }
           />

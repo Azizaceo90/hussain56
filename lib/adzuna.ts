@@ -17,9 +17,10 @@ export const DEFAULT_COUNTRIES = ["us", "ca"];
 // deduped by Adzuna id across all searches.
 export type JobQuery = { what?: string; whatOr?: string; label: string };
 
-// Kept intentionally medical-focused so results stay on-topic (no generic
-// software "coding" roles). Every search anchors on medical/health terms.
+// Kept intentionally focused so results stay on-topic. Covers remote medical
+// coding plus the full range of payroll roles.
 export const DEFAULT_QUERIES: JobQuery[] = [
+  // Medical coding
   { what: "medical coder", label: "medical coder" },
   { what: "medical coding", label: "medical coding" },
   { what: "medical coding specialist", label: "medical coding specialist" },
@@ -30,6 +31,22 @@ export const DEFAULT_QUERIES: JobQuery[] = [
   { what: "outpatient medical coder", label: "outpatient coder" },
   { what: "risk adjustment coder", label: "risk adjustment coder" },
   { what: "remote medical coder", label: "remote medical coder" },
+  // Payroll
+  { what: "payroll specialist", label: "payroll specialist" },
+  { what: "payroll coordinator", label: "payroll coordinator" },
+  { what: "payroll administrator", label: "payroll administrator" },
+  { what: "payroll analyst", label: "payroll analyst" },
+  { what: "payroll clerk", label: "payroll clerk" },
+  { what: "junior payroll specialist", label: "junior payroll specialist" },
+  { what: "payroll technician", label: "payroll technician" },
+  { what: "payroll associate", label: "payroll associate" },
+  { what: "payroll processing specialist", label: "payroll processing specialist" },
+  { what: "payroll tax specialist", label: "payroll tax specialist" },
+  { what: "multi-state payroll specialist", label: "multi-state payroll specialist" },
+  { what: "corporate payroll specialist", label: "corporate payroll specialist" },
+  { what: "payroll compliance specialist", label: "payroll compliance specialist" },
+  { what: "payroll operations specialist", label: "payroll operations specialist" },
+  { what: "payroll accountant", label: "payroll accountant" },
 ];
 
 export function adzunaConfigured(): boolean {
@@ -124,7 +141,7 @@ export async function syncJobs(opts?: {
       : DEFAULT_COUNTRIES;
   const target = Math.min(opts?.target ?? 1000, 1000);
   const resultsPerPage = 50; // Adzuna max
-  const maxPagesPerQuery = 20; // page deep into each result set
+  const maxPagesPerQuery = 6; // many queries now; keep calls/time in check
   const BATCH = 4;
 
   // Dedupe across all countries+queries. Key includes country to avoid id
